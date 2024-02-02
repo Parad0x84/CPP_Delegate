@@ -1,0 +1,7 @@
+*.*
+!.gitignore
+!.gitattributes
+!README.md
+!Premake.lua
+!Src/**
+!Script/**
