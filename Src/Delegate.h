@@ -11,10 +11,6 @@
     #define DELEGATE_ASSERT(expr) assert(expr);
 #endif
 
-#if !defined(DELEGATE_STATIC_ASSERT)
-    #define DELEGATE_STATIC_ASSERT(expr, message) static_assert(expr, message);
-#endif
-
 
 
 
@@ -22,7 +18,7 @@ template<typename... ParamTypes>
 class IDelegateEntry
 {
 public:
-    IDelegateEntry() = delete;
+    IDelegateEntry() = default;
     IDelegateEntry(const IDelegateEntry& other) = delete;
     IDelegateEntry& operator=(const IDelegateEntry& other) = delete;
 
@@ -111,7 +107,7 @@ public:
 
     virtual void Execute(ParamTypes... params) override
     {
-        DELEGATE_STATIC_ASSERT(std::is_same_v<decltype(Lambda(params...)), void>, "Lambda needs to return void!")
+        static_assert(std::is_same_v<decltype(Lambda(params...)), void>, "Lambda needs to return void!");
 
         Lambda(params...);
     }
@@ -206,7 +202,7 @@ template<typename RetValType, typename... ParamTypes>
 class IDelegateEntryRetVal
 {
 public:
-    IDelegateEntryRetVal() = delete;
+    IDelegateEntryRetVal() = default;
     IDelegateEntryRetVal(const IDelegateEntryRetVal& other) = delete;
     IDelegateEntryRetVal& operator=(const IDelegateEntryRetVal& other) = delete;
 
@@ -295,7 +291,7 @@ public:
 
     virtual RetValType Execute(ParamTypes... params) override
     {
-        DELEGATE_STATIC_ASSERT(std::is_same_v<decltype(Lambda(params...)), RetValType>, "Lambda needs to have same return type!");
+        static_assert(std::is_same_v<decltype(Lambda(params...)), RetValType>, "Lambda needs to have same return type!");
 
         return Lambda(params...);
     }
