@@ -1,7 +1,8 @@
 #pragma once
 
 
-#include <functional>
+#include <cassert>
+#include <vector>
 
 
 
@@ -21,8 +22,11 @@ template<typename ObjectType, typename... ParamTypes>
 class DelegateEntryImpl : public IDelegateEntry<ParamTypes...>
 {
 public:
+    using FuncType = void(ObjectType::* )(ParamTypes...);
+
+
     DelegateEntryImpl() = delete;
-    DelegateEntryImpl(ObjectType* object, void(ObjectType::* fn)(ParamTypes...))
+    DelegateEntryImpl(ObjectType* object, const FuncType& fn)
         : Object(object), Function(fn)  { }
 
     virtual void Execute(ParamTypes... params) override
@@ -38,20 +42,52 @@ public:
 
 private:
     ObjectType* Object = nullptr;
-    void(ObjectType::* Function)(ParamTypes...) = nullptr;
+    FuncType Function = nullptr;
 };
 
 
-template<typename... ParamTypes>
+template<typename ObjectType, typename... ParamTypes>
+class DelegateEntryImplConst : public IDelegateEntry<ParamTypes...>
+{
+public:
+    using ConstFuncType = void(ObjectType::*)(ParamTypes...) const;
+
+
+    DelegateEntryImplConst() = delete;
+    DelegateEntryImplConst(ObjectType* object, const ConstFuncType& fn)
+        : Object(object), Function(fn)
+    {
+    }
+
+    virtual void Execute(ParamTypes... params) override
+    {
+        (Object->*Function)(params...);
+    }
+
+    virtual void* GetObjectPtr() override
+    {
+        return Object;
+    }
+
+
+private:
+    ObjectType* Object = nullptr;
+    ConstFuncType Function = nullptr;
+};
+
+
+template<typename LambdaType, typename... ParamTypes>
 class DelegateEntryImplLambda : public IDelegateEntry<ParamTypes...>
 {
 public:
     DelegateEntryImplLambda() = delete;
-    explicit DelegateEntryImplLambda(void* owner, const std::function<void(ParamTypes...)>& fn)
+    explicit DelegateEntryImplLambda(void* owner, const LambdaType& fn)
         : Owner(owner), Lambda(fn) { }
 
     virtual void Execute(ParamTypes... params) override
     {
+        static_assert(std::is_same_v<decltype(Lambda(params...)), void > , "Lambda needs to return void!");
+
         Lambda(params...);
     }
 
@@ -63,7 +99,7 @@ public:
 
 private:
     void* Owner = nullptr;
-    std::function<void(ParamTypes...)> Lambda;
+    LambdaType Lambda = nullptr;
 };
 
 
@@ -73,20 +109,39 @@ template<typename... ParamTypes>
 class Delegate
 {
 public:
+    template<typename ObjectType>
+    using FuncType = void(ObjectType::*)(ParamTypes...);
+
+    template<typename ObjectType>
+    using ConstFuncType = void(ObjectType::*)(ParamTypes...) const;
+
+
     [[nodiscard]] bool IsBound() const  { return Entry; }
 
 
     template<typename ObjectType>
-    void BindObject(ObjectType* object, void(ObjectType::* fn)(ParamTypes...))
+    void BindObject(ObjectType* object, const FuncType<ObjectType>& fn)
     {
+        assert(object != nullptr);
+
         delete Entry;
         Entry = new DelegateEntryImpl<ObjectType, ParamTypes...>(object, fn);
     }
 
-    void BindLambda(void* owner, const std::function<void(ParamTypes...)>& fn)
+    template<typename ObjectType>
+    void BindObject(ObjectType* object, const ConstFuncType<ObjectType>& fn)
+    {
+        assert(object != nullptr);
+
+        delete Entry;
+        Entry = new DelegateEntryImplConst<ObjectType, ParamTypes...>(object, fn);
+    }
+
+    template<typename LambdaType>
+    void BindLambda(void* owner, const LambdaType& fn)
     {
         delete Entry;
-        Entry = new DelegateEntryImplLambda<ParamTypes...>(owner, fn);
+        Entry = new DelegateEntryImplLambda<LambdaType, ParamTypes...>(owner, fn);
     }
 
     void Unbind()
@@ -127,13 +182,15 @@ public:
     virtual void* GetObjectPtr() = 0;
 };
 
-
 template<typename ObjectType, typename RetValType, typename... ParamTypes>
 class DelegateEntryRetValImpl : public IDelegateEntryRetVal<RetValType, ParamTypes...>
 {
 public:
+    using FuncType = RetValType(ObjectType::*)(ParamTypes...);
+
+
     DelegateEntryRetValImpl() = delete;
-    DelegateEntryRetValImpl(ObjectType* object, RetValType(ObjectType::* fn)(ParamTypes...))
+    DelegateEntryRetValImpl(ObjectType* object, const FuncType& fn)
         : Object(object), Function(fn)  { }
 
     virtual RetValType Execute(ParamTypes... params) override
@@ -149,21 +206,53 @@ public:
 
 private:
     ObjectType* Object = nullptr;
-    RetValType(ObjectType::* Function)(ParamTypes...) = nullptr;
+    FuncType Function = nullptr;
+};
+
+
+template<typename ObjectType, typename RetValType, typename... ParamTypes>
+class DelegateEntryRetValImplConst : public IDelegateEntryRetVal<RetValType, ParamTypes...>
+{
+public:
+    using ConstFuncType = RetValType(ObjectType::*)(ParamTypes...) const;
+
+
+    DelegateEntryRetValImplConst() = delete;
+    DelegateEntryRetValImplConst(ObjectType* object, const ConstFuncType& fn)
+        : Object(object), Function(fn)
+    {
+    }
+
+    virtual RetValType Execute(ParamTypes... params) override
+    {
+        return (Object->*Function)(params...);
+    }
+
+    virtual void* GetObjectPtr() override
+    {
+        return Object;
+    }
+
+
+private:
+    ObjectType* Object = nullptr;
+    ConstFuncType Function = nullptr;
 };
 
 
 
-template<typename RetValType, typename... ParamTypes>
+template<typename LambdaType, typename RetValType, typename... ParamTypes>
 class DelegateEntryRetValImplLambda : public IDelegateEntryRetVal<RetValType, ParamTypes...>
 {
 public:
     DelegateEntryRetValImplLambda() = delete;
-    DelegateEntryRetValImplLambda(void* owner, const std::function<RetValType(ParamTypes...)>& fn)
+    DelegateEntryRetValImplLambda(void* owner, const LambdaType& fn)
         : Owner(owner), Lambda(fn)  { }
 
     virtual RetValType Execute(ParamTypes... params) override
     {
+        static_assert(std::is_same_v<decltype(Lambda(params...)), RetValType >, "Lambda needs to have same return type!");
+
         return Lambda(params...);
     }
 
@@ -175,7 +264,7 @@ public:
 
 private:
     void* Owner = nullptr;
-    std::function<RetValType(ParamTypes...)> Lambda;
+    LambdaType Lambda;
 };
 
 
@@ -184,20 +273,41 @@ template<typename RetValType, typename... ParamTypes>
 class DelegateRetVal
 {
 public:
+    template<typename ObjectType>
+    using FuncType = RetValType(ObjectType::*)(ParamTypes...);
+
+    template<typename ObjectType>
+    using ConstFuncType = RetValType(ObjectType::*)(ParamTypes...) const;
+
+
     [[nodiscard]] bool IsBound() const { return Entry; }
 
 
     template<typename ObjectType>
-    void BindObject(ObjectType* object, RetValType(ObjectType::* fn)(ParamTypes...))
+    void BindObject(ObjectType* object, const FuncType<ObjectType>& fn)
     {
+        assert(object != nullptr);
+
         delete Entry;
         Entry = new DelegateEntryRetValImpl<ObjectType, RetValType, ParamTypes...>(object, fn);
     }
 
-    void BindLambda(void* owner, const std::function<RetValType(ParamTypes...)>& fn)
+
+    template<typename ObjectType>
+    void BindObject(ObjectType* object, const ConstFuncType<ObjectType>& fn)
+    {
+        assert(object != nullptr);
+
+        delete Entry;
+        Entry = new DelegateEntryRetValImplConst<ObjectType, RetValType, ParamTypes...>(object, fn);
+    }
+
+
+    template<typename LambdaType>
+    void BindLambda(void* owner, const LambdaType& fn)
     {
         delete Entry;
-        Entry = new DelegateEntryRetValImplLambda<RetValType, ParamTypes...>(owner, fn);
+        Entry = new DelegateEntryRetValImplLambda<LambdaType, RetValType, ParamTypes...>(owner, fn);
     }
 
     void Unbind()
@@ -239,6 +349,13 @@ template<typename... ParamTypes>
 class MultiDelegate
 {
 public:
+    template<typename ObjectType>
+    using FuncType = void(ObjectType::*)(ParamTypes...);
+
+    template<typename ObjectType>
+    using ConstFuncType = void(ObjectType::*)(ParamTypes...) const;
+
+
     [[nodiscard]] bool HasAnyListeners() const { return Entries.size(); }
 
     template<typename ObjectType>
@@ -253,14 +370,24 @@ public:
 
 
     template<typename ObjectType>
-    void AddObject(ObjectType* object, void(ObjectType::* fn)(ParamTypes...))
+    void AddObject(ObjectType* object, const FuncType<ObjectType>& fn)
     {
+        assert(object != nullptr);
         Entries.push_back(new DelegateEntryImpl<ObjectType, ParamTypes...>(object, fn));
     }
 
-    void AddLambda(void* owner, const std::function<void(ParamTypes...)>& fn)
+    template<typename ObjectType>
+    void AddObject(ObjectType* object, const ConstFuncType<ObjectType>& fn)
     {
-        Entries.push_back(new DelegateEntryImplLambda<ParamTypes...>(owner, fn));
+        assert(object != nullptr);
+        Entries.push_back(new DelegateEntryImplConst<ObjectType, ParamTypes...>(object, fn));
+    }
+
+
+    template<typename LambdaType>
+    void AddLambda(void* owner, const LambdaType& fn)
+    {
+        Entries.push_back(new DelegateEntryImplLambda<LambdaType, ParamTypes...>(owner, fn));
     }
 
     void Remove(void* object)
@@ -301,6 +428,13 @@ template<typename RetValType, typename... ParamTypes>
 class MultiDelegateRetVal
 {
 public:
+    template<typename ObjectType>
+    using FuncType = RetValType(ObjectType::*)(ParamTypes...);
+
+    template<typename ObjectType>
+    using ConstFuncType = RetValType(ObjectType::*)(ParamTypes...) const;
+
+
     [[nodiscard]] bool HasAnyListeners() const { return Entries.size(); }
 
     template<typename ObjectType>
@@ -315,18 +449,27 @@ public:
 
 
     template<typename ObjectType>
-    void AddObject(ObjectType* object, RetValType(ObjectType::* fn)(ParamTypes...))
+    void AddObject(ObjectType* object, const FuncType<ObjectType>& fn)
     {
+        assert(object != nullptr);
         Entries.push_back(new DelegateEntryRetValImpl<ObjectType, RetValType, ParamTypes...>(object, fn));
     }
 
-    void AddLambda(void* owner, const std::function<RetValType(ParamTypes...)>& fn)
+    template<typename ObjectType>
+    void AddObject(ObjectType* object, const ConstFuncType<ObjectType>& fn)
     {
-        Entries.push_back(new DelegateEntryRetValImplLambda<RetValType, ParamTypes...>(owner, fn));
+        assert(object != nullptr);
+        Entries.push_back(new DelegateEntryRetValImplConst<ObjectType, RetValType, ParamTypes...>(object, fn));
     }
 
-    template<typename ObjectType>
-    void Remove(ObjectType* object)
+
+    template<typename LambdaType>
+    void AddLambda(void* owner, const LambdaType& fn)
+    {
+        Entries.push_back(new DelegateEntryRetValImplLambda<LambdaType, RetValType, ParamTypes...>(owner, fn));
+    }
+
+    void Remove(void* object)
     {
         for(size_t i = 0; i < Entries.size(); i++)
         {

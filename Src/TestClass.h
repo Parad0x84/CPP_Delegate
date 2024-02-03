@@ -33,7 +33,7 @@ public:
         AddDelegate.ExecuteIfBound(result);
     }
 
-    float ReturnMyNumber()
+    float ReturnMyNumber() const
     {
         return MyNumber;
     }
