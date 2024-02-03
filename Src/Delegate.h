@@ -381,7 +381,7 @@ public:
     RetValType ExecuteIfBoundWithDefaultReturn(ParamTypes... params)
     {
         if(IsBound())
-            return Execute(params);
+            return Execute(params...);
 
         return {};
     }
