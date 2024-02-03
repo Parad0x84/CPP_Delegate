@@ -1,5 +1,5 @@
 # CPP_Delegate
- An implementation of UE like delegates for vanilla CPP
+ A header-only implementation of UE-like delegates for vanilla CPP
 
 
 ## Build

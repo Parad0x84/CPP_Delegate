@@ -11,6 +11,12 @@
     #define DELEGATE_ASSERT(expr) assert(expr);
 #endif
 
+#if defined(DELEGATE_NO_NODISCARD)
+    #define NODISCARD 
+#else
+    #define NODISCARD [[nodiscard]]
+#endif
+
 
 
 
@@ -25,7 +31,7 @@ public:
     virtual ~IDelegateEntry() = default;
 
     virtual void Execute(ParamTypes... params) = 0;
-    virtual void* GetObjectPtr() = 0;
+    NODISCARD virtual void* GetObjectPtr() const = 0;
 };
 
 
@@ -49,7 +55,7 @@ public:
         (Object->*Function)(params...);
     }
 
-    virtual void* GetObjectPtr() override
+    NODISCARD virtual void* GetObjectPtr() const override
     {
         return Object;
     }
@@ -81,7 +87,7 @@ public:
         (Object->*Function)(params...);
     }
 
-    virtual void* GetObjectPtr() override
+    NODISCARD virtual void* GetObjectPtr() const override
     {
         return Object;
     }
@@ -112,7 +118,7 @@ public:
         Lambda(params...);
     }
 
-    virtual void* GetObjectPtr() override
+    NODISCARD virtual void* GetObjectPtr() const override
     {
         return Owner;
     }
@@ -142,7 +148,7 @@ public:
     Delegate& operator=(const Delegate& other) = delete;
 
 
-    [[nodiscard]] bool IsBound() const  { return Entry; }
+    NODISCARD bool IsBound() const  { return Entry; }
 
 
     template<typename ObjectType>
@@ -209,7 +215,7 @@ public:
     virtual ~IDelegateEntryRetVal() = default;
 
     virtual RetValType Execute(ParamTypes... params) = 0;
-    virtual void* GetObjectPtr() = 0;
+    NODISCARD virtual void* GetObjectPtr() const = 0;
 };
 
 template<typename ObjectType, typename RetValType, typename... ParamTypes>
@@ -232,7 +238,7 @@ public:
         return (Object->*Function)(params...);
     }
 
-    virtual void* GetObjectPtr() override
+    NODISCARD virtual void* GetObjectPtr() const override
     {
         return Object;
     }
@@ -264,7 +270,7 @@ public:
         return (Object->*Function)(params...);
     }
 
-    virtual void* GetObjectPtr() override
+    NODISCARD virtual void* GetObjectPtr() const override
     {
         return Object;
     }
@@ -296,7 +302,7 @@ public:
         return Lambda(params...);
     }
 
-    virtual void* GetObjectPtr() override
+    NODISCARD virtual void* GetObjectPtr() const override
     {
         return Owner;
     }
@@ -325,7 +331,7 @@ public:
     DelegateRetVal& operator=(const DelegateRetVal& other) = delete;
 
 
-    [[nodiscard]] bool IsBound() const { return Entry; }
+    NODISCARD bool IsBound() const { return Entry; }
 
 
     template<typename ObjectType>
@@ -406,12 +412,11 @@ public:
     MultiDelegate& operator=(const MultiDelegate& other) = delete;
 
 
-    [[nodiscard]] bool HasAnyListeners() const { return Entries.size(); }
+    NODISCARD bool HasAnyListeners() const { return Entries.size(); }
 
-    template<typename ObjectType>
-    [[nodiscard]] bool IsBound(ObjectType* object) const
+    NODISCARD bool IsBound(const void* object) const
     {
-        for(IDelegateEntry<ParamTypes...>* entry : Entries)
+        for(const IDelegateEntry<ParamTypes...>* entry : Entries)
             if(entry->GetObjectPtr() == object)
                 return true;
 
@@ -440,7 +445,7 @@ public:
         Entries.push_back(new DelegateEntryImplLambda<LambdaType, ParamTypes...>(owner, fn));
     }
 
-    void Remove(void* object)
+    void Remove(const void* object)
     {
         for(size_t i = 0; i < Entries.size(); i++)
         {
@@ -490,12 +495,11 @@ public:
     MultiDelegateRetVal& operator=(const MultiDelegateRetVal& other) = delete;
 
 
-    [[nodiscard]] bool HasAnyListeners() const { return Entries.size(); }
+    NODISCARD bool HasAnyListeners() const { return Entries.size(); }
 
-    template<typename ObjectType>
-    [[nodiscard]] bool IsBound(ObjectType* object) const
+    NODISCARD bool IsBound(const void* object) const
     {
-        for(IDelegateEntryRetVal<RetValType, ParamTypes...>* entry : Entries)
+        for(const IDelegateEntryRetVal<RetValType, ParamTypes...>* entry : Entries)
             if(entry->GetObjectPtr() == object)
                 return true;
 
@@ -524,7 +528,7 @@ public:
         Entries.push_back(new DelegateEntryRetValImplLambda<LambdaType, RetValType, ParamTypes...>(owner, fn));
     }
 
-    void Remove(void* object)
+    void Remove(const void* object)
     {
         for(size_t i = 0; i < Entries.size(); i++)
         {
