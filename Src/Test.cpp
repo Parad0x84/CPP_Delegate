@@ -3,8 +3,14 @@
 #include "TestClass.h"
 
 
+
+
 int main(int argc, char** argv)
 {
+    //MultiDelegate<void(int, int)> myDel;
+    //myDel.AddLambda(nullptr, [] (const int asd, int dsa) { return asd; });
+    //myDel.Broadcast(0, 5);
+
     TestClass* a = new TestClass("Test Class 0", 0.0f);
     TestClass* b = new TestClass("Test Class 1", 3.14f);
     TestClass* c = new TestClass("Test Class 2", 15.21f);

@@ -40,8 +40,8 @@ public:
 
 
 public:
-    Delegate<int> AddDelegate;
-    MultiDelegate<const char*> DestructorDelegate;
+    Delegate<void(int)> AddDelegate;
+    MultiDelegate<void(const char*)> DestructorDelegate;
 
     const char* MyName;
     float MyNumber;
@@ -54,7 +54,7 @@ class OtherTestClass
 public:
     void PrintSomeNumbers()
     {
-        const std::vector<float>& numbers = GetSomeNumbersDelegate.Broadcast();
+        std::vector<float> numbers = GetSomeNumbersDelegate.BroadcastRetVal();
 
         for(float number : numbers)
             std::cout << "Number is: " << number << '\n';
@@ -67,5 +67,5 @@ public:
 
 
 public:
-    MultiDelegateRetVal<float> GetSomeNumbersDelegate;
+    MultiDelegate<float()> GetSomeNumbersDelegate;
 };
