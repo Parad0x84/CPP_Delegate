@@ -34,13 +34,13 @@ template<typename RetValType, typename... ParamTypes>
 class IDelegateEntry<RetValType(ParamTypes...)>
 {
 public:
-    IDelegateEntry() = default;
+    IDelegateEntry() noexcept = default;
     IDelegateEntry(const IDelegateEntry& other) = delete;
     IDelegateEntry& operator=(const IDelegateEntry& other) = delete;
 
-    virtual ~IDelegateEntry() = default;
+    virtual ~IDelegateEntry() noexcept = default;
 
-    virtual RetValType Execute(ParamTypes... params) = 0;
+    virtual RetValType Execute(ParamTypes... params) noexcept = 0;
 };
 
 
@@ -59,10 +59,10 @@ public:
     DelegateEntryImpl(const DelegateEntryImpl& other) = delete;
     DelegateEntryImpl& operator=(const DelegateEntryImpl& other) = delete;
 
-    DelegateEntryImpl(ObjectType* object, const FuncType& fn)
+    DelegateEntryImpl(ObjectType* object, const FuncType& fn) noexcept
         : Object(object), Function(fn)  { }
 
-    virtual RetValType Execute(ParamTypes... params) override
+    virtual RetValType Execute(ParamTypes... params) noexcept override
     {
         return (Object->*Function)(params...);
     }
@@ -89,10 +89,10 @@ public:
     DelegateEntryImplConst(const DelegateEntryImplConst& other) = delete;
     DelegateEntryImplConst& operator=(const DelegateEntryImplConst& other) = delete;
 
-    DelegateEntryImplConst(ObjectType* object, const ConstFuncType& fn)
+    DelegateEntryImplConst(ObjectType* object, const ConstFuncType& fn) noexcept
         : Object(object), Function(fn)  { }
 
-    virtual RetValType Execute(ParamTypes... params) override
+    virtual RetValType Execute(ParamTypes... params) noexcept override
     {
         return (Object->*Function)(params...);
     }
@@ -116,14 +116,14 @@ public:
     DelegateEntryImplLambda(const DelegateEntryImplLambda& other) = delete;
     DelegateEntryImplLambda& operator=(const DelegateEntryImplLambda& other) = delete;
 
-    explicit DelegateEntryImplLambda(const LambdaType& fn)
+    explicit DelegateEntryImplLambda(const LambdaType& fn) noexcept
         : Lambda(fn)
     {
         static_assert(std::is_same_v<decltype(Lambda(std::declval<ParamTypes>()...)), RetValType>,
             "Lambda needs to have same return type!");
     }
 
-    virtual RetValType Execute(ParamTypes... params) override
+    virtual RetValType Execute(ParamTypes... params) noexcept override
     {
         return Lambda(params...);
     }
@@ -153,10 +153,10 @@ public:
     DelegateEntryImpl(const DelegateEntryImpl& other) = delete;
     DelegateEntryImpl& operator=(const DelegateEntryImpl& other) = delete;
 
-    DelegateEntryImpl(ObjectType* object, const FuncTypePayload& fn, PayloadTypes... payloads)
+    DelegateEntryImpl(ObjectType* object, const FuncTypePayload& fn, PayloadTypes... payloads) noexcept
         : Object(object), Function(fn), Payloads(std::forward<PayloadTypes>(payloads)...)  { }
 
-    virtual RetValType Execute(ParamTypes... params) override
+    virtual RetValType Execute(ParamTypes... params) noexcept override
     {
         auto executeWithPayload = [&] <typename... T>(T&&... payloadArgs)
         {
@@ -186,12 +186,12 @@ public:
     DelegateEntryImplConst(const DelegateEntryImplConst& other) = delete;
     DelegateEntryImplConst& operator=(const DelegateEntryImplConst& other) = delete;
 
-    DelegateEntryImplConst(ObjectType* object, const ConstFuncTypePayload& fn, PayloadTypes... payloads)
+    DelegateEntryImplConst(ObjectType* object, const ConstFuncTypePayload& fn, PayloadTypes... payloads) noexcept
         : Object(object), Function(fn), Payloads(std::forward<PayloadTypes>(payloads)...)
     {
     }
 
-    virtual RetValType Execute(ParamTypes... params) override
+    virtual RetValType Execute(ParamTypes... params) noexcept override
     {
         auto executeWithPayload = [&] <typename... T>(T&&... payloadArgs)
         {
@@ -218,14 +218,14 @@ public:
     DelegateEntryImplLambda(const DelegateEntryImplLambda& other) = delete;
     DelegateEntryImplLambda& operator=(const DelegateEntryImplLambda& other) = delete;
 
-    explicit DelegateEntryImplLambda(const LambdaType& fn, PayloadTypes... payloads)
+    explicit DelegateEntryImplLambda(const LambdaType& fn, PayloadTypes... payloads) noexcept
         : Lambda(fn), Payloads(std::forward<PayloadTypes>(payloads)...)
     {
         static_assert(std::is_same_v<decltype(Lambda(std::declval<ParamTypes>()..., std::declval<PayloadTypes>()...)), RetValType>,
             "Lambda needs to have same return type!");
     }
 
-    virtual RetValType Execute(ParamTypes... params) override
+    virtual RetValType Execute(ParamTypes... params) noexcept override
     {
         auto executeWithPayload = [&] <typename... T>(T&&... payloadArgs)
         {
@@ -271,12 +271,12 @@ class Delegate<RetValType(ParamTypes...)>
 
 
 public:
-    Delegate() = default;
+    Delegate() noexcept = default;
     Delegate(const Delegate& other) = delete;
     Delegate& operator=(const Delegate& other) = delete;
 
 
-    NODISCARD bool IsBound() const { return Entry; }
+    NODISCARD bool IsBound() const noexcept { return Entry; }
 
 
     template<typename ObjectType>
@@ -332,19 +332,19 @@ public:
     }
 
 
-    void Unbind()
+    void Unbind() noexcept
     {
         delete Entry;
         Entry = nullptr;
     }
 
 
-    RetValType Execute(ParamTypes... params)
+    RetValType Execute(ParamTypes... params) noexcept
     {
         return Entry->Execute(params...);
     }
 
-    bool ExecuteIfBound(ParamTypes... params)
+    bool ExecuteIfBound(ParamTypes... params) noexcept
     {
         if(!IsBound())
             return false;
@@ -375,7 +375,7 @@ struct EntryWrapper
     EntryWrapper(const EntryWrapper& other) = default;
     EntryWrapper& operator=(const EntryWrapper& other) = default;
 
-    EntryWrapper(const DelegateKey inID, IDelegateEntry<RetValType(ParamTypes...)>* inEntry)
+    EntryWrapper(const DelegateKey inID, IDelegateEntry<RetValType(ParamTypes...)>* inEntry) noexcept
         : ID(inID), Entry(inEntry)  { }
 
 
@@ -409,14 +409,14 @@ class MultiDelegate<RetValType(ParamTypes...)>
 
 
 public:
-    MultiDelegate() = default;
+    MultiDelegate() noexcept = default;
     MultiDelegate(const MultiDelegate& other) = delete;
     MultiDelegate& operator=(const MultiDelegate& other) = delete;
 
 
-    NODISCARD bool HasAnyListeners() const { return Entries.size(); }
+    NODISCARD bool HasAnyListeners() const noexcept { return Entries.size(); }
 
-    NODISCARD bool IsBound(const DelegateKey inKey) const
+    NODISCARD bool IsBound(const DelegateKey inKey) const noexcept
     {
         for(const EntryWrapper<RetValType, ParamTypes...>& entry : Entries)
             if(entry.ID == inKey)
@@ -475,7 +475,7 @@ public:
     }
 
 
-    void Remove(const DelegateKey inKey)
+    void Remove(const DelegateKey inKey) noexcept
     {
         for(size_t i = 0; i < Entries.size(); i++)
         {
@@ -488,7 +488,7 @@ public:
         }
     }
 
-    void Clear()
+    void Clear() noexcept
     {
         for(const EntryWrapper<RetValType, ParamTypes...>& entry : Entries)
             delete entry.Entry;
@@ -497,14 +497,14 @@ public:
     }
 
 
-    void Broadcast(ParamTypes... params)
+    void Broadcast(ParamTypes... params) noexcept
     {
         for(const EntryWrapper<RetValType, ParamTypes...>& entry : Entries)
             entry.Entry->Execute(params...);
     }
 
     template<typename T = RetValType, std::enable_if_t<!std::is_void_v<T>>* = nullptr>
-    std::vector<RetValType> BroadcastRetVal(ParamTypes... params)
+    std::vector<RetValType> BroadcastRetVal(ParamTypes... params) noexcept
     {
         std::vector<RetValType> temp;
         temp.reserve(Entries.size());
@@ -517,7 +517,7 @@ public:
 
 
 private:
-    NODISCARD DelegateKey GetNewID()  { return CurrentID++; }
+    NODISCARD DelegateKey GetNewID() noexcept { return CurrentID++; }
 
     DelegateKey CurrentID = 0;
     std::vector<EntryWrapper<RetValType, ParamTypes...>> Entries;
