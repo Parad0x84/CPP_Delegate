@@ -9,7 +9,8 @@ Or you can just use something else...
 
 
 ## TODO:
-- Add ability to pass in payload data when binding
+- Maybe allow binding non-void returning functions/lambdas in void returning delegates??
+- Maybe add thread safe alternative??
 
 
 ## Test code output (if you don't wanna run it)

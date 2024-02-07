@@ -27,6 +27,12 @@ public:
         std::cout << message << '\n';
     }
 
+    int Print2(const char* message, int number, const char* otherMessage)
+    {
+        std::cout << message << " - " << number << " - " << otherMessage << '\n';
+        return number;
+    }
+
     void Add(int a, int b)
     {
         int result = a + b;

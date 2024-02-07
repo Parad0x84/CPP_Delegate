@@ -8,6 +8,12 @@ void GlobalPrint(const char* message)
     std::cout << message << '\n';
 }
 
+int GlobalPrint2(const char* message, int number, const char* otherMessage)
+{
+    std::cout << message << " - " << number << " - " << otherMessage << '\n';
+    return number;
+}
+
 
 
 
@@ -26,6 +32,18 @@ int main(int argc, char** argv)
 
     /////////////////////////////////////////////////////////////////////////////////////
     // std::cout << "\n----------------------\n\n";
+    /////////////////////////////////////////////////////////////////////////////////////
+
+
+    MultiDelegate<int()> myDel;
+    myDel.AddObject(a, &TestClass::Print2, "Payload Message", 15, "Other Payload Message");
+    myDel.Broadcast();
+    myDel.AddLambda(&GlobalPrint2, "Payload Message", 27, "Other Payload Message");
+    myDel.Broadcast();
+
+
+    /////////////////////////////////////////////////////////////////////////////////////
+    std::cout << "\n----------------------\n\n";
     /////////////////////////////////////////////////////////////////////////////////////
 
 

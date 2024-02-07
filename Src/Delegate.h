@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <type_traits>
+#include <tuple>
 
 
 
@@ -26,8 +27,11 @@
 
 
 
+template<typename FuncSignature>
+class IDelegateEntry;
+
 template<typename RetValType, typename... ParamTypes>
-class IDelegateEntry
+class IDelegateEntry<RetValType(ParamTypes...)>
 {
 public:
     IDelegateEntry() = default;
@@ -41,8 +45,11 @@ public:
 
 
 
+template<typename ObjectType, typename FuncSignature, typename... PayloadTypes>
+class DelegateEntryImpl;
+
 template<typename ObjectType, typename RetValType, typename... ParamTypes>
-class DelegateEntryImpl : public IDelegateEntry<RetValType, ParamTypes...>
+class DelegateEntryImpl<ObjectType, RetValType(ParamTypes...)> : public IDelegateEntry<RetValType(ParamTypes...)>
 {
     using FuncType = RetValType(ObjectType::*)(ParamTypes...);
 
@@ -68,8 +75,11 @@ private:
 
 
 
+template<typename ObjectType, typename FuncSignature, typename... PayloadTypes>
+class DelegateEntryImplConst;
+
 template<typename ObjectType, typename RetValType, typename... ParamTypes>
-class DelegateEntryImplConst : public IDelegateEntry<RetValType, ParamTypes...>
+class DelegateEntryImplConst<ObjectType, RetValType(ParamTypes...)> : public IDelegateEntry<RetValType(ParamTypes...)>
 {
     using ConstFuncType = RetValType(ObjectType::*)(ParamTypes...) const;
 
@@ -95,8 +105,11 @@ private:
 
 
 
+template<typename LambdaType, typename FuncSignature, typename... PayloadTypes>
+class DelegateEntryImplLambda;
+
 template<typename LambdaType, typename RetValType, typename... ParamTypes>
-class DelegateEntryImplLambda : public IDelegateEntry<RetValType, ParamTypes...>
+class DelegateEntryImplLambda<LambdaType, RetValType(ParamTypes...)> : public IDelegateEntry<RetValType(ParamTypes...)>
 {
 public:
     DelegateEntryImplLambda() = delete;
@@ -129,10 +142,116 @@ private:
 
 
 
+template<typename ObjectType, typename RetValType, typename... ParamTypes, typename... PayloadTypes>
+class DelegateEntryImpl<ObjectType, RetValType(ParamTypes...), PayloadTypes...> : public IDelegateEntry<RetValType(ParamTypes...)>
+{
+    using FuncTypePayload = RetValType(ObjectType::*)(ParamTypes..., PayloadTypes...);
+
+
+public:
+    DelegateEntryImpl() = delete;
+    DelegateEntryImpl(const DelegateEntryImpl& other) = delete;
+    DelegateEntryImpl& operator=(const DelegateEntryImpl& other) = delete;
+
+    DelegateEntryImpl(ObjectType* object, const FuncTypePayload& fn, PayloadTypes... payloads)
+        : Object(object), Function(fn), Payloads(std::forward<PayloadTypes>(payloads)...)  { }
+
+    virtual RetValType Execute(ParamTypes... params) override
+    {
+        auto executeWithPayload = [&] <typename... T>(T&&... payloadArgs)
+        {
+            return (Object->*Function)(params..., std::forward<T>(payloadArgs)...);
+        };
+
+        return std::apply(executeWithPayload, Payloads);
+    }
+
+
+private: 
+    ObjectType* Object = nullptr;
+    FuncTypePayload Function = nullptr;
+    std::tuple<PayloadTypes...> Payloads;
+};
+
+
+
+template<typename ObjectType, typename RetValType, typename... ParamTypes, typename... PayloadTypes>
+class DelegateEntryImplConst<ObjectType, RetValType(ParamTypes...), PayloadTypes...> : public IDelegateEntry<RetValType(ParamTypes...)>
+{
+    using ConstFuncTypePayload = RetValType(ObjectType::*)(ParamTypes..., PayloadTypes...) const;
+
+
+public:
+    DelegateEntryImplConst() = delete;
+    DelegateEntryImplConst(const DelegateEntryImplConst& other) = delete;
+    DelegateEntryImplConst& operator=(const DelegateEntryImplConst& other) = delete;
+
+    DelegateEntryImplConst(ObjectType* object, const ConstFuncTypePayload& fn, PayloadTypes... payloads)
+        : Object(object), Function(fn), Payloads(std::forward<PayloadTypes>(payloads)...)
+    {
+    }
+
+    virtual RetValType Execute(ParamTypes... params) override
+    {
+        auto executeWithPayload = [&] <typename... T>(T&&... payloadArgs)
+        {
+            return (Object->*Function)(params..., std::forward<T>(payloadArgs)...);
+        };
+
+        return std::apply(executeWithPayload, Payloads);
+    }
+
+
+private:
+    ObjectType* Object = nullptr;
+    ConstFuncTypePayload Function = nullptr;
+    std::tuple<PayloadTypes...> Payloads;
+};
+
+
+
+template<typename LambdaType, typename RetValType, typename... ParamTypes, typename... PayloadTypes>
+class DelegateEntryImplLambda<LambdaType, RetValType(ParamTypes...), PayloadTypes...> : public IDelegateEntry<RetValType(ParamTypes...)>
+{
+public:
+    DelegateEntryImplLambda() = delete;
+    DelegateEntryImplLambda(const DelegateEntryImplLambda& other) = delete;
+    DelegateEntryImplLambda& operator=(const DelegateEntryImplLambda& other) = delete;
+
+    explicit DelegateEntryImplLambda(const LambdaType& fn, PayloadTypes... payloads)
+        : Lambda(fn), Payloads(std::forward<PayloadTypes>(payloads)...)
+    {
+        static_assert(std::is_same_v<decltype(Lambda(std::declval<ParamTypes>()..., std::declval<PayloadTypes>()...)), RetValType>,
+            "Lambda needs to have same return type!");
+    }
+
+    virtual RetValType Execute(ParamTypes... params) override
+    {
+        auto executeWithPayload = [&] <typename... T>(T&&... payloadArgs)
+        {
+            return Lambda(params..., std::forward<T>(payloadArgs)...);
+        };
+
+        return std::apply(executeWithPayload, Payloads);
+    }
+
+
+private:
+    LambdaType Lambda;
+    std::tuple<PayloadTypes...> Payloads;
+};
+
+
+
+
+
+
+
+
+
+
 template<typename FuncSignature>
 class Delegate;
-
-
 
 template<typename RetValType, typename... ParamTypes>
 class Delegate<RetValType(ParamTypes...)>
@@ -142,6 +261,13 @@ class Delegate<RetValType(ParamTypes...)>
 
     template<typename ObjectType>
     using ConstFuncType = RetValType(ObjectType::*)(ParamTypes...) const;
+
+
+    template<typename ObjectType, typename... PayloadTypes>
+    using FuncTypePayload = RetValType(ObjectType::*)(ParamTypes..., PayloadTypes...);
+
+    template<typename ObjectType, typename... PayloadTypes>
+    using ConstFuncTypePayload = RetValType(ObjectType::*)(ParamTypes..., PayloadTypes...) const;
 
 
 public:
@@ -159,8 +285,18 @@ public:
         DELEGATE_ASSERT(object != nullptr);
 
         delete Entry;
-        Entry = new DelegateEntryImpl<ObjectType, RetValType, ParamTypes...>(object, fn);
+        Entry = new DelegateEntryImpl<ObjectType, RetValType(ParamTypes...)>(object, fn);
     }
+
+    template<typename ObjectType, typename... PayloadTypes>
+    void BindObject(ObjectType* object, const FuncTypePayload<ObjectType, PayloadTypes...>& fn, PayloadTypes... payloads)
+    {
+        DELEGATE_ASSERT(object != nullptr);
+
+        delete Entry;
+        Entry = new DelegateEntryImpl<ObjectType, RetValType(ParamTypes...), PayloadTypes...>(object, fn, payloads...);
+    }
+
 
     template<typename ObjectType>
     void BindObject(ObjectType* object, const ConstFuncType<ObjectType>& fn)
@@ -168,7 +304,16 @@ public:
         DELEGATE_ASSERT(object != nullptr);
 
         delete Entry;
-        Entry = new DelegateEntryImplConst<ObjectType, RetValType, ParamTypes...>(object, fn);
+        Entry = new DelegateEntryImplConst<ObjectType, RetValType(ParamTypes...)>(object, fn);
+    }
+
+    template<typename ObjectType, typename... PayloadTypes>
+    void BindObject(ObjectType* object, const ConstFuncTypePayload<ObjectType, PayloadTypes...>& fn, PayloadTypes... payloads)
+    {
+        DELEGATE_ASSERT(object != nullptr);
+
+        delete Entry;
+        Entry = new DelegateEntryImplConst<ObjectType, RetValType(ParamTypes...), PayloadTypes...>(object, fn, payloads...);
     }
 
 
@@ -176,7 +321,14 @@ public:
     void BindLambda(const LambdaType& fn)
     {
         delete Entry;
-        Entry = new DelegateEntryImplLambda<LambdaType, RetValType, ParamTypes...>(fn);
+        Entry = new DelegateEntryImplLambda<LambdaType, RetValType(ParamTypes...)>(fn);
+    }
+
+    template<typename LambdaType, typename... PayloadTypes>
+    void BindLambda(const LambdaType& fn, PayloadTypes... payloads)
+    {
+        delete Entry;
+        Entry = new DelegateEntryImplLambda<LambdaType, RetValType(ParamTypes...), PayloadTypes...>(fn, payloads...);
     }
 
 
@@ -203,7 +355,7 @@ public:
 
 
 private:
-    IDelegateEntry<RetValType, ParamTypes...>* Entry = nullptr;
+    IDelegateEntry<RetValType(ParamTypes...)>* Entry = nullptr;
 };
 
 
@@ -223,13 +375,13 @@ struct EntryWrapper
     EntryWrapper(const EntryWrapper& other) = default;
     EntryWrapper& operator=(const EntryWrapper& other) = default;
 
-    EntryWrapper(const DelegateKey inID, IDelegateEntry<RetValType, ParamTypes...>* inEntry)
+    EntryWrapper(const DelegateKey inID, IDelegateEntry<RetValType(ParamTypes...)>* inEntry)
         : ID(inID), Entry(inEntry)  { }
 
 
 public:
     DelegateKey ID;
-    IDelegateEntry<RetValType, ParamTypes...>* Entry;
+    IDelegateEntry<RetValType(ParamTypes...)>* Entry;
 };
 
 
@@ -247,6 +399,13 @@ class MultiDelegate<RetValType(ParamTypes...)>
 
     template<typename ObjectType>
     using ConstFuncType = RetValType(ObjectType::*)(ParamTypes...) const;
+
+
+    template<typename ObjectType, typename... PayloadTypes>
+    using FuncTypePayload = RetValType(ObjectType::*)(ParamTypes..., PayloadTypes...);
+
+    template<typename ObjectType, typename... PayloadTypes>
+    using ConstFuncTypePayload = RetValType(ObjectType::*)(ParamTypes..., PayloadTypes...) const;
 
 
 public:
@@ -271,15 +430,32 @@ public:
     DelegateKey AddObject(ObjectType* object, const FuncType<ObjectType>& fn)
     {
         DELEGATE_ASSERT(object != nullptr);
-        Entries.emplace_back(GetNewID(), new DelegateEntryImpl<ObjectType, RetValType, ParamTypes...>(object, fn));
+        Entries.emplace_back(GetNewID(), new DelegateEntryImpl<ObjectType, RetValType(ParamTypes...)>(object, fn));
         return Entries.back().ID;
     }
+
+    template<typename ObjectType, typename... PayloadTypes>
+    DelegateKey AddObject(ObjectType* object, const FuncTypePayload<ObjectType, PayloadTypes...>& fn, PayloadTypes... payloads)
+    {
+        DELEGATE_ASSERT(object != nullptr);
+        Entries.emplace_back(GetNewID(), new DelegateEntryImpl<ObjectType, RetValType(ParamTypes...), PayloadTypes...>(object, fn, payloads...));
+        return Entries.back().ID;
+    }
+
 
     template<typename ObjectType>
     DelegateKey AddObject(ObjectType* object, const ConstFuncType<ObjectType>& fn)
     {
         DELEGATE_ASSERT(object != nullptr);
-        Entries.emplace_back(GetNewID(), new DelegateEntryImplConst<ObjectType, RetValType, ParamTypes...>(object, fn));
+        Entries.emplace_back(GetNewID(), new DelegateEntryImplConst<ObjectType, RetValType(ParamTypes...)>(object, fn));
+        return Entries.back().ID;
+    }
+
+    template<typename ObjectType, typename... PayloadTypes>
+    DelegateKey AddObject(ObjectType* object, const ConstFuncTypePayload<ObjectType, PayloadTypes...>& fn, PayloadTypes... payloads)
+    {
+        DELEGATE_ASSERT(object != nullptr);
+        Entries.emplace_back(GetNewID(), new DelegateEntryImplConst<ObjectType, RetValType(ParamTypes...), PayloadTypes...>(object, fn, payloads...));
         return Entries.back().ID;
     }
 
@@ -287,7 +463,14 @@ public:
     template<typename LambdaType>
     DelegateKey AddLambda(const LambdaType& fn)
     {
-        Entries.emplace_back(GetNewID(), new DelegateEntryImplLambda<LambdaType, RetValType, ParamTypes...>(fn));
+        Entries.emplace_back(GetNewID(), new DelegateEntryImplLambda<LambdaType, RetValType(ParamTypes...)>(fn));
+        return Entries.back().ID;
+    }
+
+    template<typename LambdaType, typename... PayloadTypes>
+    DelegateKey AddLambda(const LambdaType& fn, PayloadTypes... payloads)
+    {
+        Entries.emplace_back(GetNewID(), new DelegateEntryImplLambda<LambdaType, RetValType(ParamTypes...), PayloadTypes...>(fn, payloads...));
         return Entries.back().ID;
     }
 
