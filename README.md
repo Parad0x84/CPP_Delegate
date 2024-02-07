@@ -8,15 +8,8 @@ For other platforms you can check out premake
 Or you can just use something else...  
 
 
-## Known Issues
-- It's inconvenient to Unbind stuff
-- It makes assumption of "Every object will only bind once for multi delegates (including nullptr for lambdas)"
-
-
 ## TODO:
 - Add ability to pass in payload data when binding
-- Maybe remove "virtual void* GetObjectPtr() = 0;" functions and do casting instead??
-- Maybe rewrite some of MultiDelegate/MultiDelegateRetVal logic??
 
 
 ## Test code output (if you don't wanna run it)

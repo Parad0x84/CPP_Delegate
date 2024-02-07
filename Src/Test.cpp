@@ -3,6 +3,12 @@
 #include "TestClass.h"
 
 
+void GlobalPrint(const char* message)
+{
+    std::cout << message << '\n';
+}
+
+
 
 
 int main(int argc, char** argv)
@@ -23,14 +29,11 @@ int main(int argc, char** argv)
     /////////////////////////////////////////////////////////////////////////////////////
 
 
-    auto lambda = [] (const char* message) { std::cout << message << '\n'; };
-    auto otherLambda = [] (const char* message) { std::cout << "Destroyed a TestClass object\n"; };
+    auto lambda = [] (const char* message) { std::cout << "Destroyed a TestClass object\n"; };
 
-
-
-    a->DestructorDelegate.AddLambda(nullptr, lambda);
+    a->DestructorDelegate.AddLambda(&GlobalPrint);
     b->DestructorDelegate.AddObject(a, &TestClass::Print);
-    c->DestructorDelegate.AddLambda(nullptr, otherLambda);
+    c->DestructorDelegate.AddLambda(lambda);
 
     a->Add(3, 2);
     a->AddDelegate.BindObject(o, &OtherTestClass::PrintInt);
@@ -42,8 +45,8 @@ int main(int argc, char** argv)
     /////////////////////////////////////////////////////////////////////////////////////
 
 
-    o->GetSomeNumbersDelegate.AddObject(a, &TestClass::ReturnMyNumber);
-    o->GetSomeNumbersDelegate.AddLambda(nullptr, [] () { return 133.99f; });
+    DelegateKey aKey = o->GetSomeNumbersDelegate.AddObject(a, &TestClass::ReturnMyNumber);
+    o->GetSomeNumbersDelegate.AddLambda([] () { return 133.99f; });
     o->PrintSomeNumbers();
 
     std::cout << "\n----------------------\n\n";
@@ -54,7 +57,7 @@ int main(int argc, char** argv)
 
     std::cout << "\n----------------------\n\n";
 
-    o->GetSomeNumbersDelegate.Remove(a);
+    o->GetSomeNumbersDelegate.Remove(aKey);
     o->PrintSomeNumbers();
 
 

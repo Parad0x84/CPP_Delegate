@@ -19,6 +19,10 @@
 #endif
 
 
+#if !defined(DelegateKey)
+    #define DelegateKey size_t
+#endif
+
 
 
 
@@ -33,7 +37,6 @@ public:
     virtual ~IDelegateEntry() = default;
 
     virtual RetValType Execute(ParamTypes... params) = 0;
-    NODISCARD virtual void* GetObjectPtr() const = 0;
 };
 
 
@@ -52,15 +55,9 @@ public:
     DelegateEntryImpl(ObjectType* object, const FuncType& fn)
         : Object(object), Function(fn)  { }
 
-
     virtual RetValType Execute(ParamTypes... params) override
     {
         return (Object->*Function)(params...);
-    }
-
-    NODISCARD virtual void* GetObjectPtr() const override
-    {
-        return Object;
     }
 
 
@@ -85,15 +82,9 @@ public:
     DelegateEntryImplConst(ObjectType* object, const ConstFuncType& fn)
         : Object(object), Function(fn)  { }
 
-
     virtual RetValType Execute(ParamTypes... params) override
     {
         return (Object->*Function)(params...);
-    }
-
-    NODISCARD virtual void* GetObjectPtr() const override
-    {
-        return Object;
     }
 
 
@@ -112,25 +103,20 @@ public:
     DelegateEntryImplLambda(const DelegateEntryImplLambda& other) = delete;
     DelegateEntryImplLambda& operator=(const DelegateEntryImplLambda& other) = delete;
 
-    DelegateEntryImplLambda(void* owner, const LambdaType& fn)
-        : Owner(owner), Lambda(fn)  { }
-
+    explicit DelegateEntryImplLambda(const LambdaType& fn)
+        : Lambda(fn)
+    {
+        static_assert(std::is_same_v<decltype(Lambda(std::declval<ParamTypes>()...)), RetValType>,
+            "Lambda needs to have same return type!");
+    }
 
     virtual RetValType Execute(ParamTypes... params) override
     {
-        static_assert(std::is_same_v<decltype(Lambda(params...)), RetValType>, "Lambda needs to have same return type!");
-
         return Lambda(params...);
-    }
-
-    NODISCARD virtual void* GetObjectPtr() const override
-    {
-        return Owner;
     }
 
 
 private:
-    void* Owner = nullptr;
     LambdaType Lambda;
 };
 
@@ -156,6 +142,8 @@ class Delegate<RetValType(ParamTypes...)>
 
     template<typename ObjectType>
     using ConstFuncType = RetValType(ObjectType::*)(ParamTypes...) const;
+
+    using GlobalFuncType = RetValType(*)(ParamTypes...);
 
 
 public:
@@ -187,10 +175,10 @@ public:
 
 
     template<typename LambdaType>
-    void BindLambda(void* owner, const LambdaType& fn)
+    void BindLambda(const LambdaType& fn)
     {
         delete Entry;
-        Entry = new DelegateEntryImplLambda<LambdaType, RetValType, ParamTypes...>(owner, fn);
+        Entry = new DelegateEntryImplLambda<LambdaType, RetValType, ParamTypes...>(fn);
     }
 
 
@@ -229,6 +217,27 @@ private:
 
 
 
+template<typename RetValType, typename... ParamTypes>
+struct EntryWrapper
+{
+    EntryWrapper() = delete;
+
+    EntryWrapper(const EntryWrapper& other) = default;
+    EntryWrapper& operator=(const EntryWrapper& other) = default;
+
+    EntryWrapper(const DelegateKey inID, IDelegateEntry<RetValType, ParamTypes...>* inEntry)
+        : ID(inID), Entry(inEntry)  { }
+
+
+public:
+    DelegateKey ID;
+    IDelegateEntry<RetValType, ParamTypes...>* Entry;
+};
+
+
+
+
+
 template<typename FuncSignature>
 class MultiDelegate;
 
@@ -241,6 +250,8 @@ class MultiDelegate<RetValType(ParamTypes...)>
     template<typename ObjectType>
     using ConstFuncType = RetValType(ObjectType::*)(ParamTypes...) const;
 
+    using GlobalFuncType = RetValType(*)(ParamTypes...);
+
 
 public:
     MultiDelegate() = default;
@@ -250,10 +261,10 @@ public:
 
     NODISCARD bool HasAnyListeners() const { return Entries.size(); }
 
-    NODISCARD bool IsBound(const void* object) const
+    NODISCARD bool IsBound(const DelegateKey inKey) const
     {
-        for(const IDelegateEntry<RetValType, ParamTypes...>* entry : Entries)
-            if(entry->GetObjectPtr() == object)
+        for(const EntryWrapper<RetValType, ParamTypes...>& entry : Entries)
+            if(entry.ID == inKey)
                 return true;
 
         return false;
@@ -261,34 +272,37 @@ public:
 
 
     template<typename ObjectType>
-    void AddObject(ObjectType* object, const FuncType<ObjectType>& fn)
+    DelegateKey AddObject(ObjectType* object, const FuncType<ObjectType>& fn)
     {
         DELEGATE_ASSERT(object != nullptr);
-        Entries.push_back(new DelegateEntryImpl<ObjectType, RetValType, ParamTypes...>(object, fn));
+        Entries.emplace_back(GetNewID(), new DelegateEntryImpl<ObjectType, RetValType, ParamTypes...>(object, fn));
+        return Entries.back().ID;
     }
 
     template<typename ObjectType>
-    void AddObject(ObjectType* object, const ConstFuncType<ObjectType>& fn)
+    DelegateKey AddObject(ObjectType* object, const ConstFuncType<ObjectType>& fn)
     {
         DELEGATE_ASSERT(object != nullptr);
-        Entries.push_back(new DelegateEntryImplConst<ObjectType, RetValType, ParamTypes...>(object, fn));
+        Entries.emplace_back(GetNewID(), new DelegateEntryImplConst<ObjectType, RetValType, ParamTypes...>(object, fn));
+        return Entries.back().ID;
     }
 
 
     template<typename LambdaType>
-    void AddLambda(void* owner, const LambdaType& fn)
+    DelegateKey AddLambda(const LambdaType& fn)
     {
-        Entries.push_back(new DelegateEntryImplLambda<LambdaType, RetValType, ParamTypes...>(owner, fn));
+        Entries.emplace_back(GetNewID(), new DelegateEntryImplLambda<LambdaType, RetValType, ParamTypes...>(fn));
+        return Entries.back().ID;
     }
 
 
-    void Remove(const void* object)
+    void Remove(const DelegateKey inKey)
     {
         for(size_t i = 0; i < Entries.size(); i++)
         {
-            if(Entries[i]->GetObjectPtr() == object)
+            if(Entries[i].ID == inKey)
             {
-                delete Entries[i];
+                delete Entries[i].Entry;
                 Entries.erase(Entries.begin() + i);
                 return;
             }
@@ -297,8 +311,8 @@ public:
 
     void Clear()
     {
-        for(IDelegateEntry<RetValType, ParamTypes...>* entry : Entries)
-            delete entry;
+        for(const EntryWrapper<RetValType, ParamTypes...>& entry : Entries)
+            delete entry.Entry;
 
         Entries.clear();
     }
@@ -306,8 +320,8 @@ public:
 
     void Broadcast(ParamTypes... params)
     {
-        for(IDelegateEntry<RetValType, ParamTypes...>* entry : Entries)
-            entry->Execute(params...);
+        for(const EntryWrapper<RetValType, ParamTypes...>& entry : Entries)
+            entry.Entry->Execute(params...);
     }
 
     template<typename T = RetValType, std::enable_if_t<!std::is_void_v<T>>* = nullptr>
@@ -316,13 +330,16 @@ public:
         std::vector<RetValType> temp;
         temp.reserve(Entries.size());
 
-        for(IDelegateEntry<RetValType, ParamTypes...>* entry : Entries)
-            temp.push_back(entry->Execute(params...));
+        for(const EntryWrapper<RetValType, ParamTypes...>& entry : Entries)
+            temp.push_back(entry.Entry->Execute(params...));
 
         return temp;
     }
 
 
 private:
-    std::vector<IDelegateEntry<RetValType, ParamTypes...>*> Entries;
+    NODISCARD DelegateKey GetNewID()  { return CurrentID++; }
+
+    DelegateKey CurrentID = 0;
+    std::vector<EntryWrapper<RetValType, ParamTypes...>> Entries;
 };
