@@ -143,8 +143,6 @@ class Delegate<RetValType(ParamTypes...)>
     template<typename ObjectType>
     using ConstFuncType = RetValType(ObjectType::*)(ParamTypes...) const;
 
-    using GlobalFuncType = RetValType(*)(ParamTypes...);
-
 
 public:
     Delegate() = default;
@@ -249,8 +247,6 @@ class MultiDelegate<RetValType(ParamTypes...)>
 
     template<typename ObjectType>
     using ConstFuncType = RetValType(ObjectType::*)(ParamTypes...) const;
-
-    using GlobalFuncType = RetValType(*)(ParamTypes...);
 
 
 public:
