@@ -167,7 +167,7 @@ public:
     }
 
 
-private: 
+private:
     ObjectType* Object = nullptr;
     FuncTypePayload Function = nullptr;
     std::tuple<PayloadTypes...> Payloads;
@@ -187,9 +187,7 @@ public:
     DelegateEntryImplConst& operator=(const DelegateEntryImplConst& other) = delete;
 
     DelegateEntryImplConst(ObjectType* object, const ConstFuncTypePayload& fn, PayloadTypes... payloads) noexcept
-        : Object(object), Function(fn), Payloads(std::forward<PayloadTypes>(payloads)...)
-    {
-    }
+        : Object(object), Function(fn), Payloads(std::forward<PayloadTypes>(payloads)...)  { }
 
     virtual RetValType Execute(ParamTypes... params) noexcept override
     {
