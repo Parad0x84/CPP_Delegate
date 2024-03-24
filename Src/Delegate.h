@@ -520,3 +520,8 @@ private:
     DelegateKey CurrentID = 0;
     std::vector<EntryWrapper<RetValType, ParamTypes...>> Entries;
 };
+
+
+
+
+#undef NODISCARD
