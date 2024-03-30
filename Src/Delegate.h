@@ -271,7 +271,18 @@ class Delegate<RetValType(ParamTypes...)>
 public:
     Delegate() noexcept = default;
     Delegate(const Delegate& other) = delete;
+    Delegate(Delegate&& other) noexcept
+    {
+        *this = std::move(other);
+    }
+
     Delegate& operator=(const Delegate& other) = delete;
+    Delegate& operator=(Delegate&& other) noexcept
+    {
+        Entry = other.Entry;
+        other.Entry = nullptr;
+        return *this;
+    }
 
 
     NODISCARD bool IsBound() const noexcept { return Entry; }
@@ -409,7 +420,21 @@ class MultiDelegate<RetValType(ParamTypes...)>
 public:
     MultiDelegate() noexcept = default;
     MultiDelegate(const MultiDelegate& other) = delete;
+    MultiDelegate(MultiDelegate&& other) noexcept
+    {
+        *this == std::move(other);
+    }
+
     MultiDelegate& operator=(const MultiDelegate& other) = delete;
+    MultiDelegate& operator=(MultiDelegate&& other) noexcept
+    {
+        CurrentID = other.CurrentID;
+        Entries = other.Entries;
+        other.CurrentID = 0;
+        other.Entries.clear();
+
+        return *this;
+    }
 
 
     NODISCARD bool HasAnyListeners() const noexcept { return Entries.size(); }
